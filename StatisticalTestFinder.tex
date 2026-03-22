@@ -1,0 +1,517 @@
+% =============================================================================
+% Statistical Test Finder — Decision Tree
+% Author:  Tim Draws <drawstim@gmail.com>  |  https://timdraws.net
+% License: MIT  (https://opensource.org/licenses/MIT)
+% Source:  https://timdraws.net/files/StatisticalTestFinder.pdf
+% =============================================================================
+%
+% ARCHITECTURE OVERVIEW
+% ---------------------
+%  1. Preamble        — packages, page geometry, hyperlink config
+%  2. Forest styles   — reusable node/edge style definitions
+%  3. Page style      — header/footer setup
+%  4. Legend tree     — small forest that explains the column layout
+%  5. Main tree       — the full decision tree (hypothesis tests only;
+%                       descriptive and predictive analyses excluded by design)
+%
+% TREE COLUMN STRUCTURE (left → right)
+%   Analysis Type → #DVs → DV type → #DV categories → #IVs
+%   → IV type → #IV categories → Research Design
+%   → Recommended Analysis → Non-Parametric Alternative
+%
+% KNOWN OMISSIONS (intentional, see Note 1 in footer)
+%   - Mixed/random-effects models
+%   - Polynomial & multinomial probit regression
+%   - Most ML methods (not typically used for hypothesis testing)
+% =============================================================================
+
+
+% -----------------------------------------------------------------------------
+% 1. PACKAGES & PAGE GEOMETRY
+% -----------------------------------------------------------------------------
+
+\documentclass{article}
+
+\usepackage[utf8]{inputenc}
+
+% Oversized "poster" page to accommodate the wide forest tree.
+% heightrounded avoids geometry warnings about fractional lengths.
+\usepackage[
+  paperheight = 1850pt,
+  paperwidth  = 1650pt,
+  margin      = 50pt,
+  heightrounded
+]{geometry}
+
+\geometry{
+  bottom   = 150pt,
+  footskip = 50pt
+}
+
+\usepackage{forest}      % Decision-tree drawing
+\usepackage{fancyhdr}    % Custom header/footer
+\usepackage{hyperref}    % Clickable URLs and cross-references
+
+
+% -----------------------------------------------------------------------------
+% 2. HYPERLINK CONFIGURATION
+% -----------------------------------------------------------------------------
+
+% We want underlined links (not coloured) so the tree stays monochrome.
+% The two \Hy@AtBeginDocument overrides are necessary because hyperref's
+% colorlinks=false still draws a coloured box by default; the patch below
+% replaces the box border with a thin underline.
+\makeatletter
+\Hy@AtBeginDocument{%
+  \def\@pdfborder{0 0 1}%           Border dimensions: x y w
+  \def\@pdfborderstyle{/S/U/W 1}%   /S/U = Underline style, /W 1 = 1pt wide
+}
+\makeatother
+
+\hypersetup{
+  colorlinks     = false,   % Colour handled via border patch above
+  linkcolor      = black,   % Fallback link text colour (rarely visible)
+  linkbordercolor = black,  % Border colour for internal links
+}
+
+
+% -----------------------------------------------------------------------------
+% 3. FOREST NODE/EDGE STYLE DEFINITIONS
+% -----------------------------------------------------------------------------
+
+\forestset{%
+  % Internal (decision) nodes — draws a visible box.
+  Node/.style={draw=black},%
+  % Legacy alias used in the legend tree.
+  L2/.style={edge={line width=0.8pt}},%
+  % Leaf: recommended-analysis column — fixed width for alignment.
+  Leaf/.style={draw=black, minimum width=60mm},%
+  % LeafAnalysis: legend column headers — same width, no border.
+  LeafAnalysis/.style={minimum width=60mm},%
+}
+
+
+% -----------------------------------------------------------------------------
+% 4. PAGE STYLE (header suppressed; footer holds footnotes + credits)
+% -----------------------------------------------------------------------------
+
+\title{Statistical Test Finder}
+\author{}
+\date{}
+
+\pagestyle{fancy}
+\fancyhead{}                        % No header content
+\renewcommand{\headrulewidth}{0pt}  % Remove header rule
+
+% Footer: a single wide tabular cell that spans the full page width and
+% holds pseudo-footnotes (numbered manually via \footnotemark) plus
+% general notes and the licence statement.
+
+\cfoot{%
+  \begin{tabular}{p{2000pt}}
+    \\
+    % Footnote 1 — likelihood-ratio test siblings
+    \footnotemark[1]{%
+      Two closely related tests (approximations of the likelihood ratio
+      test) are the \underline{\href{https://en.wikipedia.org/wiki/Wald_test}{Wald
+      test}} and the \underline{\href{https://en.wikipedia.org/wiki/Score_test}{score test}}.
+    }\\
+    % Footnote 2 — one-sample t vs Z distinction
+    \footnotemark[2]{%
+      When testing whether a population mean equals a given value, use the
+      one-sample $t$-test when the true population variance is unknown and the $Z$-test when it is known.
+    }\\
+    % Footnote 3 — Mann-Whitney alias
+    \footnotemark[3]{%
+      The Mann-Whitney $U$-test is also known as the Wilcoxon rank-sum
+      test.
+    }\\
+    % Footnote 4 — Kruskal-Wallis limitation
+    \footnotemark[4]{%
+      The Kruskal-Wallis test can only test main effects (no interaction
+      effects).
+    }\\\\
+    % --- General notes ---
+    \textbf{Note 1.} This sheet does not cover every single existing statistical hypothesis test. To avoid overload, infrequently used methods (e.g., polynomial regression or multinomial probit regression),\\ \hspace{0.5cm} mixed/random-effect models, and predictive methods not typically used for hypothesis testing (e.g., tree-based ML) are intentionally omitted.\\
+    \textbf{Note 2.} All tests are presented as classical (frequentist)
+    hypothesis tests. However, note that many of them have Bayesian counterparts implemented in R, Python, or JASP.\\\\
+    % --- Licence & provenance ---
+    Originally created by \underline{\href{https://timdraws.net}{Tim Draws}}. Released under the \underline{\href{https://opensource.org/licenses/MIT}{MIT License}}. Last update: \today. Links: \underline{\href{https://timdraws.net/files/StatisticalTestFinder.pdf}{latest version}}, \underline{\href{https://github.com/timdraws/StatisticalTestFinder}{GitHub repository}} -- feedback/changes/additions welcome!
+  \end{tabular}%
+}
+
+\pagenumbering{gobble}  % Suppress page numbers on this poster-style sheet
+
+
+% =============================================================================
+% DOCUMENT BODY
+% =============================================================================
+
+\begin{document}
+
+
+% -----------------------------------------------------------------------------
+% 5. LEGEND TREE
+% Renders a small "key" showing what each column in the main tree represents.
+% Uses the same forest settings as the main tree so column widths align when
+% both forests are placed on the same page.
+% -----------------------------------------------------------------------------
+
+\begin{forest}
+  for tree={%
+    grow=0, reversed,% left-to-right layout
+    parent anchor=east, child anchor=west,%
+    edge={line cap=round}, outer sep=+1pt,%
+    rounded corners, minimum width=40mm, minimum height=30mm,%
+    l sep=10mm% horizontal level spacing
+  }
+  [\textbf{(Start Here)}\\Analysis Type, align=center, base=center, L2
+    [Number of\\Dependent Variables, align=center, base=center, L2
+      [Type of\\Dependent Variable(s), align=center, base=center, L2
+        [(If Categorical DV)\\Number of Categories, align=center, base=center
+          [Number of\\Independent Variables, align=center, base=center, L2
+            [Type of\\Independent Variable(s), align=center, base=center, L2
+              [(If Categorical IV)\\Number of Categories, align=center, base=center
+                [(If Categorical IV)\\Research Design, align=center, base=center
+                  [\textbf{Recommended Analysis}, align=center, base=center, LeafAnalysis
+                    [\textbf{Non-Parametric Alternative}, align=center, base=center, LeafAnalysis]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
+      ]
+    ]
+  ]
+\end{forest}
+
+
+% -----------------------------------------------------------------------------
+% 6. MAIN DECISION TREE
+%
+% Structure mirrors the legend columns above. Tier names are used to keep
+% sibling nodes vertically aligned across branches:
+%   AnalysisType → nDV → DVtype → nCatDV → nIV → IVtype → nCat
+%   → resDesign → recAnalysis → nonPara
+%
+% STYLE CONVENTIONS
+%   Node       — all branch (decision) nodes
+%   Leaf       — recommended-analysis leaf (rightmost substantive column)
+%   nonPara    — non-parametric alternative leaf (child of Leaf)
+%   tier       — alignment anchor; must match the legend column position
+%
+% FOOTNOTE SUPERSCRIPTS
+%   $^1$ Likelihood-ratio test siblings (Wald, Score)
+%   $^2$ t-test vs Z-test distinction
+%   $^3$ Mann-Whitney = Wilcoxon rank-sum alias
+%   $^4$ Kruskal-Wallis: main effects only
+% -----------------------------------------------------------------------------
+
+\begin{forest}
+  for tree={%
+    grow=0, reversed,%
+    parent anchor=east, child anchor=west,%
+    edge={line cap=round}, outer sep=+1pt,%
+    rounded corners, minimum width=40mm, minimum height=8mm,%
+    l sep=10mm%
+  }
+  % ============================================================
+  % ROOT
+  % ============================================================
+  [Hypothesis Test, tier=AnalysisType, Node
+    % ----------------------------------------------------------
+    % BRANCH A: ONE dependent variable
+    % ----------------------------------------------------------
+    [One, tier=nDV, Node
+      % ··· A-1: NOMINAL dependent variable ···················
+      [Nominal, tier=DVtype, Node
+        % A-1a: Binary DV (2 categories)
+        [Two, tier=nCatDV, Node
+          % No IV — test against a fixed probability
+          [None (Test Value), tier=nIV, Node
+            [\href{http://sites.utexas.edu/sos/guided/inferential/categorical/univariate/binomial/}{Binomial Test},
+              tier=recAnalysis, Leaf]
+          ]
+          % One IV
+          [One, tier=nIV, Node
+            % IV is nominal
+            [Nominal, tier=IVtype, Node
+              % Binary nominal IV
+              [Two, tier=nCat, Node
+                [Between-Subjects, tier=resDesign, Node
+                  [\href{https://en.wikipedia.org/wiki/Chi-squared_test}{Fisher's Exact Test},
+                    tier=recAnalysis, Leaf]
+                ]
+                [Within-Subjects, tier=resDesign, Node
+                  [\href{https://www.statstest.com/mcnemar-test/}{McNemar's Test},
+                    tier=recAnalysis, Leaf]
+                ]
+              ]
+              % Nominal IV (2+ categories)
+              [Two or more, tier=nCat, Node
+                [\href{https://en.wikipedia.org/wiki/Chi-squared_test}{Chi-Squared Test},
+                  tier=recAnalysis, Leaf]
+                [\href{https://en.wikipedia.org/wiki/Likelihood-ratio_test}{Likelihood Ratio Test}$^1$,
+                  tier=recAnalysis, Leaf]
+              ]
+            ] % end Nominal IV type
+            % IV is ordinal
+            [Ordinal, tier=IVtype, Node
+              [\href{https://www.statisticshowto.com/rank-biserial-correlation/}{Rank-Biserial Correlation},
+                tier=recAnalysis, Leaf]
+            ]
+            % IV is continuous
+            [Continuous, tier=IVtype, Node
+              [\href{https://en.wikipedia.org/wiki/Logistic_regression}{Logistic Regression},
+                tier=recAnalysis, Leaf]
+              [\href{https://www.andrews.edu/~calkins/math/edrm611/edrm13.htm}{Point-Biserial Correlation},
+                tier=recAnalysis, Leaf]
+            ]
+          ] % end One IV (binary DV)
+          % Two or more IVs
+          [Two or more, tier=nIV, Node
+            [Continuous, tier=IVtype, Node
+              [\href{https://www.aphis.usda.gov/animal_health/surveillance_toolbox/docs/epi_surv/discriminant_analysis_statsoft_textbook.pdf}{Discriminant Analysis},
+                tier=recAnalysis, Leaf]
+            ]
+            [Categorical, tier=IVtype, Node
+              [\href{https://en.wikipedia.org/wiki/Log-linear_analysis}{Loglinear Analysis},
+                tier=recAnalysis, Leaf]
+            ]
+            [Any, tier=IVtype, Node
+              [\href{https://en.wikipedia.org/wiki/Logistic_regression}{Logistic Regression},
+                tier=recAnalysis, Leaf]
+            ]
+          ] % end Two or more IVs (binary DV)
+        ] % end A-1a (binary DV)
+        % A-1b: Polytomous DV (3+ categories)
+        [More than two, tier=nCatDV, Node
+          % No IV — test against expected distribution
+          [None (Distribution), tier=nIV, Node
+            [\href{https://www.statology.org/multinomial-test/}{Multinomial Test},
+              tier=recAnalysis, Leaf]
+          ]
+          % One IV
+          [One, tier=nIV, Node
+            [Categorical, tier=IVtype, Node
+              [\href{https://en.wikipedia.org/wiki/Chi-squared_test}{Chi-Squared Test},
+                tier=recAnalysis, Leaf]
+              [\href{https://en.wikipedia.org/wiki/Likelihood-ratio_test}{Likelihood Ratio Test}$^1$,
+                tier=recAnalysis, Leaf]
+            ]
+            [Any, tier=IVtype, Node
+              [\href{https://stats.idre.ucla.edu/r/dae/multinomial-logistic-regression/}{Multinomial Logistic Regression},
+                tier=recAnalysis, Leaf]
+            ]
+          ]
+          % Two or more IVs
+          [Two or more, tier=nIV, Node
+            [Continuous, tier=IVtype, Node
+              [\href{https://www.aphis.usda.gov/animal_health/surveillance_toolbox/docs/epi_surv/discriminant_analysis_statsoft_textbook.pdf}{Discriminant Analysis},
+                tier=recAnalysis, Leaf]
+            ]
+            [Categorical, tier=IVtype, Node
+              [\href{https://en.wikipedia.org/wiki/Log-linear_analysis}{Loglinear Analysis},
+                tier=recAnalysis, Leaf]
+            ]
+            [Any, tier=IVtype, Node
+              [\href{https://stats.idre.ucla.edu/r/dae/multinomial-logistic-regression/}{Multinomial Logistic Regression},
+                tier=recAnalysis, Leaf]
+            ]
+          ]
+        ] % end A-1b (polytomous DV)
+      ] % end A-1 (Nominal DV)
+      % ··· A-2: ORDINAL dependent variable ···················
+      [Ordinal, tier=DVtype, Node
+        % One IV
+        [One, tier=nIV, Node
+          [Nominal, tier=IVtype, Node
+            % NOTE: only binary nominal IV shown; polytomous case → Kruskal-Wallis
+            % (covered under Continuous DV branch)
+            [Two, tier=nCat, Node
+              [\href{https://www.statisticshowto.com/rank-biserial-correlation/}{Rank-Biserial Correlation},
+                tier=recAnalysis, Leaf]
+              [\href{https://www.statology.org/mann-whitney-u-test}{Mann-Whitney $U$-Test$^3$},
+                tier=recAnalysis, Leaf]
+            ]
+          ]
+          [Ordinal, tier=IVtype, Node
+            [\href{https://en.wikipedia.org/wiki/Kendall_rank_correlation_coefficient}{Kendall's $\tau$},
+              tier=recAnalysis, Leaf]
+            [\href{https://en.wikipedia.org/wiki/Spearman's_rank_correlation_coefficient}{Spearman's $\rho$},
+              tier=recAnalysis, Leaf]
+          ]
+          [Continuous, tier=IVtype, Node
+            [\href{https://en.wikipedia.org/wiki/Ordered_logit}{Ordinal Logistic Regression},
+              tier=recAnalysis, Leaf]
+            [\href{https://www.andrews.edu/~calkins/math/edrm611/edrm13.htm}{Biserial Correlation},
+              tier=recAnalysis, Leaf]
+          ]
+        ] % end One IV (ordinal DV)
+        % Two or more IVs
+        [Two or more, tier=nIV, Node
+          [\href{https://en.wikipedia.org/wiki/Ordered_logit}{Ordinal Logistic Regression},
+            tier=recAnalysis, Leaf]
+        ]
+      ] % end A-2 (Ordinal DV)
+      % ··· A-3: CONTINUOUS dependent variable ················
+      [Continuous, tier=DVtype, Node
+        % No IV — one-sample tests
+        [None (Test Value), tier=nIV, Node
+          [\href{https://www.statology.org/one-sample-t-test/}{One Sample $t$-Test},
+            tier=recAnalysis, Leaf
+            % Non-parametric alternative
+            [\href{https://en.wikipedia.org/wiki/Wilcoxon_signed-rank_test}{Wilcoxon Signed-Rank Test},
+              tier=nonPara, Leaf]
+          ]
+          % Z-test: only when true population variance is known (footnote 2)
+          [\href{https://courses.washington.edu/psy315/tutorials/z_test_tutorial.pdf}{$Z$-Test$^2$},
+            tier=recAnalysis, Leaf]
+        ]
+        % One IV
+        [One, tier=nIV, Node
+          % IV is categorical
+          [Categorical, tier=IVtype, Node
+            % Binary categorical IV
+            [Two, tier=nCat, Node
+              [Between-Subjects, tier=resDesign, Node
+                [\href{https://www.statstest.com/independent-samples-t-test/}{Independent Samples $t$-Test},
+                  tier=recAnalysis, Leaf
+                  [\href{https://www.statology.org/mann-whitney-u-test/}{Mann-Whitney $U$-Test$^3$},
+                    tier=nonPara, Leaf]
+                ]
+                % Welch's t-test: preferable when variances are unequal
+                [\href{https://www.statology.org/welchs-t-test/}{Welch's $t$-Test},
+                  tier=recAnalysis, Leaf]
+                [\href{https://www.andrews.edu/~calkins/math/edrm611/edrm13.htm}{Point-Biserial Correlation},
+                  tier=recAnalysis, Leaf]
+              ]
+              [Within-Subjects, tier=resDesign, Node
+                [\href{https://www.statology.org/paired-samples-t-test/}{Paired Samples $t$-Test},
+                  tier=recAnalysis, Leaf
+                  [\href{https://www.statstest.com/wilcoxon-signed-rank-test/}{Wilcoxon Signed-Rank Test},
+                    tier=nonPara, Leaf]
+                ]
+              ]
+            ] % end binary categorical IV
+            % Polytomous categorical IV (3+ groups)
+            [More Than Two, tier=nCat, Node
+              [Between-Subjects, tier=resDesign, Node
+                [\href{https://www.statology.org/one-way-anova/}{One-Way ANOVA},
+                  tier=recAnalysis, Leaf
+                  [\href{https://www.statology.org/kruskal-wallis-test/}{Kruskal-Wallis Test},
+                    tier=nonPara, Leaf]
+                ]
+              ]
+              [Within-Subjects, tier=resDesign, Node
+                [\href{https://www.statology.org/repeated-measures-anova/}{One-Way Repeated Measures ANOVA},
+                  tier=recAnalysis, Leaf
+                  [\href{https://www.statology.org/friedman-test/}{Friedman Test},
+                    tier=nonPara, Leaf]
+                ]
+              ]
+            ] % end polytomous categorical IV
+          ] % end Categorical IV type (one IV, continuous DV)
+          % IV is continuous
+          [Continuous, tier=IVtype, Node
+            [\href{https://statistics.laerd.com/statistical-guides/pearson-correlation-coefficient-statistical-guide.php}{Pearson Correlation},
+              tier=recAnalysis, Leaf
+              [\href{https://en.wikipedia.org/wiki/Kendall_rank_correlation_coefficient}{Kendall's $\tau$},
+                tier=nonPara, Leaf]
+              [\href{https://en.wikipedia.org/wiki/Spearman's_rank_correlation_coefficient}{Spearman's $\rho$},
+                tier=nonPara, Leaf]
+            ]
+            [\href{http://www.stat.yale.edu/Courses/1997-98/101/linreg.htm}{Simple Linear Regression},
+              tier=recAnalysis, Leaf
+              [\href{https://rcompanion.org/handbook/F_12.html}{Nonparametric Regression},
+                tier=nonPara, Leaf]
+            ]
+          ]
+        ] % end One IV (continuous DV)
+        % Two or more IVs
+        [Two or more, tier=nIV, Node
+          % All IVs categorical (factorial ANOVA family)
+          [Categorical, tier=IVtype, Node
+            [Between-Subjects, tier=resDesign, Node
+              [\href{https://sites.ualberta.ca/~lkgray/uploads/7/3/6/2/7362679/slides_-_multi-way_anovaa.pdf}{Multi-Way ANOVA},
+                tier=recAnalysis, Leaf
+                % Kruskal-Wallis: main effects only (footnote 4)
+                [\href{https://www.statology.org/kruskal-wallis-test/}{Kruskal-Wallis Test$^4$},
+                  tier=nonPara, Leaf]
+              ]
+            ]
+            [Within-Subjects, tier=resDesign, Node
+              [\href{https://biostats.w.uib.no/factorial-repeated-measures-anova-two-way-repeated-measures-anova/}{Factorial Repeated Measures ANOVA},
+                tier=recAnalysis, Leaf]
+            ]
+            [Mixed, tier=resDesign, Node
+              [\href{http://web.pdx.edu/~newsomj/uvclass/ho_mixed.pdf}{Factorial Mixed ANOVA},
+                tier=recAnalysis, Leaf]
+            ]
+          ] % end Categorical IVs
+          % All IVs continuous (regression family)
+          [Continuous, tier=IVtype, Node
+            [\href{http://www.stat.yale.edu/Courses/1997-98/101/linmult.htm}{Multiple Linear Regression},
+              tier=recAnalysis, Leaf
+              [\href{https://rcompanion.org/handbook/F_12.html}{Nonparametric Regression},
+                tier=nonPara, Leaf]
+            ]
+            [\href{https://www.statstest.com/partial-correlation/}{Partial Correlation},
+              tier=recAnalysis, Leaf]
+          ]
+          % Mixed IVs: categorical + continuous (ANCOVA family)
+          [Both, tier=IVtype, Node
+            [\href{http://www.stat.yale.edu/Courses/1997-98/101/linmult.htm}{Multiple Linear Regression},
+              tier=recAnalysis, Leaf
+              [\href{https://rcompanion.org/handbook/F_12.html}{Nonparametric Regression},
+                tier=nonPara, Leaf]
+            ]
+            [\href{https://www.statology.org/ancova/}{ANCOVA},
+              tier=recAnalysis, Leaf
+              [\href{https://www.youtube.com/watch?v=jozx59H5IHw}{Quade's ANCOVA},
+                tier=nonPara, Leaf]
+            ]
+          ]
+        ] % end Two or more IVs (continuous DV)
+      ] % end A-3 (Continuous DV)
+    ] % end BRANCH A (one DV)
+    % ----------------------------------------------------------
+    % BRANCH B: TWO OR MORE dependent variables (multivariate)
+    % Note: categorical/mixed DV types omitted — no standard
+    % single analysis covers them.
+    % ----------------------------------------------------------
+    [Two or more, tier=nDV, Node
+      % All DVs continuous
+      [Continuous, tier=DVtype, Node
+        % One IV
+        [One, tier=nIV, Node
+          [Categorical, tier=IVtype, Node
+            [\href{https://www.statology.org/manova-spss/}{MANOVA},
+              tier=recAnalysis, Leaf
+              [\href{https://link.springer.com/article/10.1007/s10463-019-00717-3}{Nonparametric MANOVA},
+                tier=nonPara, Leaf]
+            ]
+          ]
+        ]
+        % Two or more IVs
+        [Two or more, tier=nIV, Node
+          [Continuous, tier=IVtype, Node
+            [\href{https://online.stat.psu.edu/stat505/lesson/13}{Canonical Correlation Analysis},
+              tier=recAnalysis, Leaf]
+          ]
+          [Categorical, tier=IVtype, Node
+            [\href{https://core.ecu.edu/wuenschk/MV/MANOVA/MANOVA2.pdf}{Factorial MANOVA},
+              tier=recAnalysis, Leaf]
+          ]
+          [Both, tier=IVtype, Node
+            [\href{https://www.statisticssolutions.com/free-resources/directory-of-statistical-analyses/multivariate-analysis-of-covariance-mancova/}{MANCOVA},
+              tier=recAnalysis, Leaf]
+          ]
+        ]
+      ] % end Continuous DVs
+    ] % end BRANCH B (two or more DVs)
+  ] % end ROOT (Hypothesis Test)
+\end{forest}
+
+\end{document}
